@@ -36,10 +36,71 @@ type NavLink = { href: string; label: string; icon?: LucideIcon };
 const links: NavLink[] = [
   { href: "/#home", label: "Home", icon: HomeIcon },
   { href: "/#about", label: "About", icon: CircleUser },
-  { href: "/projects", label: "Projects", icon: FolderGit2 },
+  { href: "/#projects", label: "Projects", icon: FolderGit2 },
   { href: "/tools", label: "Tools", icon: Wrench },
   { href: "/contact", label: "Contact", icon: Mail },
 ];
+
+/* Defer hashchange to the next frame to avoid "useInsertionEffect must not schedule updates" */
+function scheduleHashChange() {
+  if (typeof window === "undefined") return;
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event("hashchange"));
+    });
+  } else {
+    setTimeout(() => {
+      window.dispatchEvent(new Event("hashchange"));
+    }, 0);
+  }
+}
+
+/* Patch history to emit an event when pushState/replaceState are called.
+   This makes Next.js hash navigations notify our useHash store without violating insertion effect constraints. */
+let historyPatched = false;
+let historyPatchRefs = 0;
+let originalPushState: History["pushState"] | null = null;
+let originalReplaceState: History["replaceState"] | null = null;
+
+function ensureHistoryPatched() {
+  if (typeof window === "undefined") return () => {};
+
+  historyPatchRefs += 1;
+  if (!historyPatched) {
+    historyPatched = true;
+    originalPushState = history.pushState;
+    originalReplaceState = history.replaceState;
+
+    history.pushState = function patchedPushState(
+      this: History,
+      ...args: Parameters<History["pushState"]>
+    ): ReturnType<History["pushState"]> {
+      const ret = originalPushState!.apply(history, args);
+      scheduleHashChange();
+      return ret;
+    };
+
+    history.replaceState = function patchedReplaceState(
+      this: History,
+      ...args: Parameters<History["replaceState"]>
+    ): ReturnType<History["replaceState"]> {
+      const ret = originalReplaceState!.apply(history, args);
+      scheduleHashChange();
+      return ret;
+    };
+  }
+
+  return () => {
+    historyPatchRefs -= 1;
+    if (historyPatchRefs === 0 && historyPatched) {
+      if (originalPushState) history.pushState = originalPushState;
+      if (originalReplaceState) history.replaceState = originalReplaceState;
+      originalPushState = null;
+      originalReplaceState = null;
+      historyPatched = false;
+    }
+  };
+}
 
 /* SSR-safe media query */
 function useMediaQuery(query: string) {
@@ -52,12 +113,22 @@ function useMediaQuery(query: string) {
       const mql = window.matchMedia(query);
       const handler = () => callback();
 
-      if (mql.addEventListener) {
+      if ("addEventListener" in mql) {
         mql.addEventListener("change", handler);
         return () => mql.removeEventListener("change", handler);
       } else {
-        mql.addListener(handler);
-        return () => mql.removeListener(handler);
+        // Legacy Safari
+        type LegacyMQL = MediaQueryList & {
+          addListener: (
+            listener: (this: MediaQueryList, ev: MediaQueryListEvent) => void
+          ) => void;
+          removeListener: (
+            listener: (this: MediaQueryList, ev: MediaQueryListEvent) => void
+          ) => void;
+        };
+        const legacy = mql as unknown as LegacyMQL;
+        legacy.addListener(handler);
+        return () => legacy.removeListener(handler);
       }
     },
     getSnapshot,
@@ -65,7 +136,7 @@ function useMediaQuery(query: string) {
   );
 }
 
-/* SSR-safe hash store */
+/* SSR-safe hash store (reacts to push/replaceState via the patch above) */
 function useHash() {
   const getSnapshot = () =>
     typeof window !== "undefined" ? window.location.hash : "";
@@ -74,11 +145,15 @@ function useHash() {
     (callback) => {
       if (typeof window === "undefined") return () => {};
       const handler = () => callback();
+
+      const unpatch = ensureHistoryPatched();
       window.addEventListener("hashchange", handler);
       window.addEventListener("popstate", handler);
+
       return () => {
         window.removeEventListener("hashchange", handler);
         window.removeEventListener("popstate", handler);
+        unpatch();
       };
     },
     getSnapshot,
@@ -164,6 +239,13 @@ export default function SiteHeader() {
       .map((p) => p.hash.slice(1));
   }, [pathname]);
 
+  // Suppress scroll-spy briefly after a manual nav click
+  const lastManualNavRef = useRef(0);
+  const markManualNav = () => {
+    lastManualNavRef.current = performance.now();
+  };
+  const SPY_SUPPRESS_MS = 600;
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!inPageAnchors.length) return;
@@ -173,12 +255,17 @@ export default function SiteHeader() {
       if (window.location.hash === next) return;
       const base = window.location.pathname + window.location.search;
       history.replaceState(null, "", base + next);
-      // replaceState doesn't fire events; notify our store
-      window.dispatchEvent(new Event("hashchange"));
+      // Defer notifying the store to the next frame
+      scheduleHashChange();
     };
 
     const observer = new IntersectionObserver(
       (entries) => {
+        // Ignore scroll-spy updates right after a manual nav
+        if (performance.now() - lastManualNavRef.current < SPY_SUPPRESS_MS) {
+          return;
+        }
+
         const visible = entries.filter((e) => e.isIntersecting);
         if (!visible.length) return;
         visible.sort((a, b) => b.intersectionRatio - a.intersectionRatio);
@@ -293,6 +380,7 @@ export default function SiteHeader() {
                   <Link
                     key={href}
                     href={href}
+                    onClick={markManualNav}
                     aria-current={active ? "page" : undefined}
                     className={[
                       "relative rounded-lg px-3 py-1.5 text-sm",
@@ -356,7 +444,10 @@ export default function SiteHeader() {
                     <Link
                       key={href}
                       href={href}
-                      onClick={() => setMobileOpen(false)} // close on navigation
+                      onClick={() => {
+                        markManualNav();
+                        setMobileOpen(false); // close on navigation
+                      }}
                       className={[
                         "flex items-center gap-3 rounded-md px-3 py-2 my-2 text-sm transition-colors",
                         active
