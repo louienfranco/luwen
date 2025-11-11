@@ -31,10 +31,10 @@ type NavLink = { href: string; label: string; icon?: LucideIcon };
 
 /*
   Treat Home as a section at the top using "/#home".
-  Add id="home" to your top/hero section on the home page (see snippet below).
+  Add id="home" to your top/hero section on the home page.
 */
 const links: NavLink[] = [
-  { href: "/#home", label: "Home", icon: HomeIcon }, // changed from "/"
+  { href: "/#home", label: "Home", icon: HomeIcon },
   { href: "/#about", label: "About", icon: CircleUser },
   { href: "/projects", label: "Projects", icon: FolderGit2 },
   { href: "/tools", label: "Tools", icon: Wrench },
@@ -107,6 +107,9 @@ export default function SiteHeader() {
   const hash = useHash();
   const { resolvedTheme, setTheme } = useTheme();
 
+  // Ref to the island wrapper (used for click-away)
+  const islandRef = useRef<HTMLDivElement>(null);
+
   // Hydration-safe: do not read window at initial render
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -148,13 +151,8 @@ export default function SiteHeader() {
   // Active logic supporting routes + hashes
   const isActive = (href: string) => {
     const parts = splitBaseAndHash(href);
-    // Pure route (no hash)
     if (!parts.hash) return samePath(pathname, parts.base);
-
-    // Hash-only href like "#about" => current page anchor
     if (parts.base === "") return hash === parts.hash;
-
-    // "/#about" (or any "/path#hash") => anchor on a specific route
     return samePath(pathname, parts.base) && hash === parts.hash;
   };
 
@@ -163,7 +161,7 @@ export default function SiteHeader() {
     return links
       .map((l) => splitBaseAndHash(l.href))
       .filter((p) => p.hash && (p.base === "" || samePath(p.base, pathname)))
-      .map((p) => p.hash.slice(1)); // ids
+      .map((p) => p.hash.slice(1));
   }, [pathname]);
 
   useEffect(() => {
@@ -189,7 +187,7 @@ export default function SiteHeader() {
       },
       {
         root: null,
-        rootMargin: "-50% 0px -50% 0px", // focus around viewport center
+        rootMargin: "-50% 0px -50% 0px",
         threshold: [0, 0.25, 0.5, 0.75, 1],
       }
     );
@@ -202,12 +200,47 @@ export default function SiteHeader() {
     return () => observer.disconnect();
   }, [inPageAnchors]);
 
+  // Click-away + Escape to close on mobile
+  useEffect(() => {
+    if (!isMobileOpen) return;
+
+    const onPointerDown = (e: PointerEvent) => {
+      const el = islandRef.current;
+      if (el && e.target instanceof Node && !el.contains(e.target)) {
+        setMobileOpen(false);
+      }
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isMobileOpen]);
+
   return (
     <header className="font-mono pointer-events-none fixed inset-x-0 top-3 z-50 sm:top-4 md:top-6">
       <div className="mx-auto w-full max-w-3xl px-3 sm:px-4 pointer-events-auto">
+        {/* Backdrop that closes the menu when tapping outside (mobile only) */}
+        {isMobileOpen && (
+          <button
+            aria-label="Close menu backdrop"
+            className="fixed inset-0 z-40 md:hidden"
+            onClick={() => setMobileOpen(false)}
+            tabIndex={-1}
+            style={{ background: "transparent" }} // or 'rgba(0,0,0,0.3)' to dim
+          />
+        )}
+
         <div
+          ref={islandRef}
           className={[
-            "relative overflow-hidden border bg-background/80 backdrop-blur supports-backdrop-filter:bg-background/60",
+            "relative z-50 overflow-hidden border bg-background/80 backdrop-blur supports-backdrop-filter:bg-background/60",
             "transition-[box-shadow,border-radius] duration-300",
             scrolled ? "shadow-lg" : "shadow-sm",
             isMobileOpen ? "rounded-2xl" : "rounded-[18px]",
