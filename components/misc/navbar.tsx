@@ -4,7 +4,13 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -23,9 +29,13 @@ import {
 /* One source of truth */
 type NavLink = { href: string; label: string; icon?: LucideIcon };
 
+/*
+  Treat Home as a section at the top using "/#home".
+  Add id="home" to your top/hero section on the home page (see snippet below).
+*/
 const links: NavLink[] = [
-  { href: "/", label: "Home", icon: HomeIcon },
-  { href: "/about", label: "About", icon: CircleUser },
+  { href: "/#home", label: "Home", icon: HomeIcon }, // changed from "/"
+  { href: "/#about", label: "About", icon: CircleUser },
   { href: "/projects", label: "Projects", icon: FolderGit2 },
   { href: "/tools", label: "Tools", icon: Wrench },
   { href: "/contact", label: "Contact", icon: Mail },
@@ -55,9 +65,46 @@ function useMediaQuery(query: string) {
   );
 }
 
+/* SSR-safe hash store */
+function useHash() {
+  const getSnapshot = () =>
+    typeof window !== "undefined" ? window.location.hash : "";
+
+  return useSyncExternalStore(
+    (callback) => {
+      if (typeof window === "undefined") return () => {};
+      const handler = () => callback();
+      window.addEventListener("hashchange", handler);
+      window.addEventListener("popstate", handler);
+      return () => {
+        window.removeEventListener("hashchange", handler);
+        window.removeEventListener("popstate", handler);
+      };
+    },
+    getSnapshot,
+    () => ""
+  );
+}
+
+/* Href parts helper */
+function splitBaseAndHash(href: string) {
+  if (href.startsWith("#")) return { base: "", hash: href };
+  if (href.includes("#")) {
+    const [base, h] = href.split("#");
+    return { base: base || "/", hash: `#${h}` };
+  }
+  return { base: href, hash: "" };
+}
+
+function samePath(a: string, b: string) {
+  const norm = (p: string) => (p || "/").replace(/\/+$/, "") || "/";
+  return norm(a) === norm(b);
+}
+
 /* Floating “Dynamic Island” header that expands on mobile */
 export default function SiteHeader() {
   const pathname = usePathname();
+  const hash = useHash();
   const { resolvedTheme, setTheme } = useTheme();
 
   // Hydration-safe: do not read window at initial render
@@ -97,6 +144,63 @@ export default function SiteHeader() {
       ro?.disconnect();
     };
   }, []);
+
+  // Active logic supporting routes + hashes
+  const isActive = (href: string) => {
+    const parts = splitBaseAndHash(href);
+    // Pure route (no hash)
+    if (!parts.hash) return samePath(pathname, parts.base);
+
+    // Hash-only href like "#about" => current page anchor
+    if (parts.base === "") return hash === parts.hash;
+
+    // "/#about" (or any "/path#hash") => anchor on a specific route
+    return samePath(pathname, parts.base) && hash === parts.hash;
+  };
+
+  // Scroll spy: automatically update hash while scrolling (current route only)
+  const inPageAnchors = useMemo(() => {
+    return links
+      .map((l) => splitBaseAndHash(l.href))
+      .filter((p) => p.hash && (p.base === "" || samePath(p.base, pathname)))
+      .map((p) => p.hash.slice(1)); // ids
+  }, [pathname]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!inPageAnchors.length) return;
+
+    const setHashSafe = (id: string) => {
+      const next = `#${id}`;
+      if (window.location.hash === next) return;
+      const base = window.location.pathname + window.location.search;
+      history.replaceState(null, "", base + next);
+      // replaceState doesn't fire events; notify our store
+      window.dispatchEvent(new Event("hashchange"));
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (!visible.length) return;
+        visible.sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        const best = visible[0];
+        if (best.target.id) setHashSafe(best.target.id);
+      },
+      {
+        root: null,
+        rootMargin: "-50% 0px -50% 0px", // focus around viewport center
+        threshold: [0, 0.25, 0.5, 0.75, 1],
+      }
+    );
+
+    inPageAnchors.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [inPageAnchors]);
 
   return (
     <header className="font-mono pointer-events-none fixed inset-x-0 top-3 z-50 sm:top-4 md:top-6">
@@ -151,7 +255,7 @@ export default function SiteHeader() {
             {/* Desktop nav */}
             <nav className="mx-2 hidden md:flex flex-1 items-center justify-center gap-3">
               {links.map(({ href, label }) => {
-                const active = pathname === href;
+                const active = isActive(href);
                 return (
                   <Link
                     key={href}
@@ -214,7 +318,7 @@ export default function SiteHeader() {
               <Separator />
               <nav className="px-2 py-2">
                 {links.map(({ href, label, icon: Icon }) => {
-                  const active = pathname === href;
+                  const active = isActive(href);
                   return (
                     <Link
                       key={href}

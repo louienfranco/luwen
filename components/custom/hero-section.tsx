@@ -66,7 +66,8 @@ export default function HeroSection() {
 
   return (
     <section
-      className="w-full min-h-screen flex flex-col items-center mt-24 md:mt-32"
+      id="home"
+      className="relative grid min-h-screen w-full place-items-center"
       aria-labelledby="hero-heading"
     >
       <div className="container px-4 md:px-6 space-y-10 md:space-y-16 max-w-5xl mx-auto">
@@ -149,6 +150,7 @@ export default function HeroSection() {
               text="Louien Franco"
               delayStart={g1Base + 2 * g1Step + 0.05}
               wordClassName={cn(
+                "font-mono",
                 "supports-[background-clip:text]:bg-clip-text",
                 "supports-[background-clip:text]:text-transparent",
                 "supports-[background-clip:text]:[-webkit-text-fill-color:transparent]",
@@ -207,7 +209,7 @@ export default function HeroSection() {
         {/* Group 2: tagline → icons */}
         <div className="space-y-4 text-center">
           <motion.p
-            className="text-sm text-foreground/80"
+            className="font-mono text-sm text-foreground/80"
             initial={fadeUp.initial}
             animate={fadeUp.animate}
             transition={{ duration: 0.5, delay: g2Base }}
@@ -409,7 +411,7 @@ export default function HeroSection() {
         >
           {/* 2) Dot pops in next, still keeps the bounce */}
           <motion.div
-            className="h-1 w-1 rounded-full bg-foreground/70 animate-bounce"
+            className="h-2 w-1 rounded-full bg-foreground/30 animate-bounce"
             initial={{ opacity: 0, scale: 0.6 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{
@@ -422,7 +424,7 @@ export default function HeroSection() {
         </motion.div>
 
         {/* 3) Letters of "Scroll" appear one by one */}
-        <span className="mt-1 text-xs uppercase tracking-wider flex">
+        <span className="font-mono mt-1 text-xs tracking-wider flex">
           {"Scroll".split("").map((ch, i) => (
             <motion.span
               key={`${ch}-${i}`}
