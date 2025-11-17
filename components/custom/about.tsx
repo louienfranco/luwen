@@ -1,4 +1,5 @@
 import { Separator } from "@/components/ui/separator";
+import React, { memo } from "react";
 import {
   Cpu,
   MapPin,
@@ -12,22 +13,22 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export default function AboutMinimal() {
-  const facts: { icon: LucideIcon; label: string; value: string }[] = [
-    { icon: MapPin, label: "City", value: "Batangas" },
-    { icon: Cpu, label: "AI assistant", value: "GPT5 High" },
-    { icon: Laptop, label: "System", value: "Linux/Windows" },
-  ];
+const facts: { icon: LucideIcon; label: string; value: string }[] = [
+  { icon: MapPin, label: "City", value: "Batangas" },
+  { icon: Cpu, label: "AI assistant", value: "GPT5 High" },
+  { icon: Laptop, label: "System", value: "Linux/Windows" },
+];
 
-  const highlights: { icon: LucideIcon; title: string; text: string }[] = [
-    { icon: Code2, title: "Frontend", text: "React, Next.js, Tailwind" },
-    { icon: Rocket, title: "Experience", text: "Building UIs" },
-    { icon: Coffee, title: "Interests", text: "Coffee & design systems" },
-    { icon: BookOpen, title: "Learning", text: "Web performance & a11y" },
-    { icon: Users, title: "Collaboration", text: "Mentoring & teamwork" },
-    { icon: Sparkles, title: "Focus", text: "DX & polish" },
-  ];
+const highlights: { icon: LucideIcon; title: string; text: string }[] = [
+  { icon: Code2, title: "Frontend", text: "React, Next.js, Tailwind" },
+  { icon: Rocket, title: "Experience", text: "Building UIs" },
+  { icon: Coffee, title: "Interests", text: "Coffee & design systems" },
+  { icon: BookOpen, title: "Learning", text: "Web performance & a11y" },
+  { icon: Users, title: "Collaboration", text: "Mentoring & teamwork" },
+  { icon: Sparkles, title: "Focus", text: "DX & polish" },
+];
 
+function AboutMinimal() {
   return (
     <section
       id="about"
@@ -124,3 +125,5 @@ export default function AboutMinimal() {
     </section>
   );
 }
+
+export default memo(AboutMinimal);

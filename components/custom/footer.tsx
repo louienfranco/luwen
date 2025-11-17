@@ -1,7 +1,8 @@
+import React, { memo } from "react";
 import Link from "next/link";
 import { Globe, Twitter, Facebook } from "lucide-react";
 
-export default function Footer() {
+function Footer() {
   const year = new Date().getFullYear();
 
   return (
@@ -20,6 +21,8 @@ export default function Footer() {
             href="https://www.facebook.com/luwenprangko"
             className="text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Facebook"
+            target="_blank"
+            rel="noopener noreferrer"
           >
             <Facebook className="h-5 w-5" />
             <span className="sr-only">Facebook</span>
@@ -39,3 +42,5 @@ export default function Footer() {
     </footer>
   );
 }
+
+export default memo(Footer);

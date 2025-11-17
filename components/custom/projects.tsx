@@ -199,6 +199,8 @@ export default function ProjectsSection() {
   );
 }
 
+export const MemoProjectsSection = memo(ProjectsSection);
+
 /**
  * A single scrolling panel. We keep the reveal animations,
  * and forward the wrapper ref so the parent can measure it.
