@@ -1,10 +1,7 @@
 import { Separator } from "@/components/ui/separator";
 import {
-  Music,
+  Cpu,
   MapPin,
-  Clapperboard,
-  Tv,
-  Utensils,
   Laptop,
   Code2,
   Rocket,
@@ -17,11 +14,8 @@ import {
 
 export default function AboutMinimal() {
   const facts: { icon: LucideIcon; label: string; value: string }[] = [
-    { icon: Music, label: "Music", value: "Perfect" },
     { icon: MapPin, label: "City", value: "Batangas" },
-    { icon: Clapperboard, label: "Movie", value: "Ironman" },
-    { icon: Tv, label: "TV Show", value: "Showtime" },
-    { icon: Utensils, label: "Food", value: "Cookies & Coffee" },
+    { icon: Cpu, label: "AI assistant", value: "GPT5 High" },
     { icon: Laptop, label: "System", value: "Linux/Windows" },
   ];
 
@@ -99,7 +93,7 @@ export default function AboutMinimal() {
                   <Icon className="h-4 w-4 text-muted-foreground mt-1" />
                   <div>
                     <p className="text-sm text-muted-foreground">{label}</p>
-                    <p className="font-medium">{value}</p>
+                    <p className="font-mono text-sm">{value}</p>
                   </div>
                 </div>
               ))}

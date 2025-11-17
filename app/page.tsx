@@ -3,6 +3,7 @@ import HeroSection from "@/components/custom/hero-section";
 import AboutPage from "@/components/custom/about";
 import Footer from "@/components/custom/footer";
 import ProjectsSection from "@/components/custom/projects";
+import { ToolCards } from "@/components/custom/stack";
 
 export default function Home() {
   return (
@@ -12,6 +13,7 @@ export default function Home() {
         <HeroSection />
         <AboutPage />
         <ProjectsSection />
+        <ToolCards />
       </main>
       <Footer />
     </>

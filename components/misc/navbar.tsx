@@ -37,7 +37,7 @@ const links: NavLink[] = [
   { href: "/#home", label: "Home", icon: HomeIcon },
   { href: "/#about", label: "About", icon: CircleUser },
   { href: "/#projects", label: "Projects", icon: FolderGit2 },
-  { href: "/tools", label: "Tools", icon: Wrench },
+  { href: "/stack", label: "Stack", icon: Wrench },
   { href: "/contact", label: "Contact", icon: Mail },
 ];
 
@@ -185,6 +185,23 @@ export default function SiteHeader() {
   // Ref to the island wrapper (used for click-away)
   const islandRef = useRef<HTMLDivElement>(null);
 
+  // Track whether header has mounted to avoid re-playing initial animations.
+  // Use state instead of reading a ref during render (avoids lint/compile warnings).
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    // Defer the state flip to the next frame to avoid a sync state update during
+    // the effect execution which can trigger a cascading render warning.
+    const id =
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame(() => setHasMounted(true))
+        : setTimeout(() => setHasMounted(true), 0);
+    return () => {
+      if (typeof cancelAnimationFrame === "function")
+        cancelAnimationFrame(id as number);
+      else clearTimeout(id as number);
+    };
+  }, []);
+
   // Hydration-safe: do not read window at initial render
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -245,6 +262,20 @@ export default function SiteHeader() {
     lastManualNavRef.current = performance.now();
   };
   const SPY_SUPPRESS_MS = 600;
+  // Track the last hash the user requested via clicking a nav link so we can
+  // programmatically scroll to it after Next.js route changes (useful when
+  // clicking an anchor like "/#home" from a different section/page).
+  const lastRequestedHashRef = useRef<string | null>(null);
+
+  const markManualNavWithHref = (href?: string) => {
+    markManualNav();
+    if (!href) {
+      lastRequestedHashRef.current = null;
+      return;
+    }
+    const parts = splitBaseAndHash(href);
+    lastRequestedHashRef.current = parts.hash || null;
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -286,6 +317,46 @@ export default function SiteHeader() {
 
     return () => observer.disconnect();
   }, [inPageAnchors]);
+
+  // After a manual nav that requested an in-page hash, attempt to scroll to
+  // the target element. We retry a few times because the target element may
+  // not be present immediately after a route change.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const requested = lastRequestedHashRef.current;
+    if (!requested) return;
+
+    const id = requested.startsWith("#") ? requested.slice(1) : requested;
+    let attempts = 0;
+
+    const tryScroll = () => {
+      const el = document.getElementById(id);
+      if (el) {
+        // Use instant scroll so all navigations behave consistently
+        // (no smooth scrolling) and the anchor is reached immediately.
+        el.scrollIntoView({ behavior: "auto", block: "start" });
+        lastRequestedHashRef.current = null;
+        return;
+      }
+      attempts++;
+      if (attempts < 6) {
+        // Try again after a short delay (element may mount shortly after)
+        setTimeout(tryScroll, 100);
+      } else {
+        // Give up after a few tries
+        lastRequestedHashRef.current = null;
+      }
+    };
+
+    // Only try to auto-scroll for a recent manual nav click to avoid
+    // interfering with normal scroll-spy behaviour.
+    if (performance.now() - lastManualNavRef.current < 2000) {
+      // Defer first attempt to next frame to allow DOM updates
+      if (typeof requestAnimationFrame === "function")
+        requestAnimationFrame(tryScroll);
+      else setTimeout(tryScroll, 0);
+    }
+  }, [pathname, hash]);
 
   // Click-away + Escape to close on mobile
   useEffect(() => {
@@ -351,9 +422,10 @@ export default function SiteHeader() {
 
             {/* Logo */}
             <Link
-              href="/"
+              href="/#home"
               className="font-semibold tracking-tight"
               aria-label="Home"
+              onClick={() => markManualNavWithHref("/#home")}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -380,7 +452,7 @@ export default function SiteHeader() {
                   <Link
                     key={href}
                     href={href}
-                    onClick={markManualNav}
+                    onClick={() => markManualNavWithHref(href)}
                     aria-current={active ? "page" : undefined}
                     className={[
                       "relative rounded-lg px-3 py-1.5 text-sm",
@@ -394,9 +466,17 @@ export default function SiteHeader() {
                       <motion.span
                         layoutId="nav-active-pill"
                         className="absolute inset-0 rounded-lg bg-muted"
+                        // Only run the "initial" animation on the very first mount to
+                        // avoid a quick pop-in/flicker when switching between sections.
+                        initial={
+                          hasMounted ? false : { opacity: 0, scale: 0.97 }
+                        }
+                        animate={{ opacity: 1, scale: 1 }}
+                        // Remove the exit animation so the shared layout animation via
+                        // layoutId can handle smooth transitions without a visible gap.
                         transition={{
                           type: "spring",
-                          duration: 0.5,
+                          duration: 0.45,
                           bounce: 0.25,
                         }}
                       />
@@ -445,7 +525,7 @@ export default function SiteHeader() {
                       key={href}
                       href={href}
                       onClick={() => {
-                        markManualNav();
+                        markManualNavWithHref(href);
                         setMobileOpen(false); // close on navigation
                       }}
                       className={[
