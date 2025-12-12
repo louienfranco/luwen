@@ -67,7 +67,7 @@ function AboutMinimal() {
             </div>
 
             {/* Mobile-only Highlights (before separator) */}
-            <div className="md:hidden mt-4">
+            <div className="md:hidden mt-4 font-mono">
               <div className="rounded-xl border p-5">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
                   Highlights
@@ -102,7 +102,7 @@ function AboutMinimal() {
           </div>
 
           {/* Highlights (right on md+) */}
-          <div className="hidden md:block md:order-2 md:col-span-5 lg:col-span-4">
+          <div className="hidden md:block md:order-2 md:col-span-5 lg:col-span-4 font-mono">
             <div className="rounded-xl border p-5">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 Highlights

@@ -2,8 +2,15 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
-import { motion, useScroll, useTransform, useSpring } from "motion/react";
+import { useLayoutEffect, useRef, useState } from "react";
+import {
+  motion,
+  useScroll,
+  useTransform,
+  useSpring,
+  useMotionValue,
+  type MotionValue,
+} from "motion/react";
 import { badgeVariants } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ButtonWithGlow } from "@/components/misc/rgb-button";
@@ -49,6 +56,88 @@ function AnimatedWords({
   );
 }
 
+/**
+ * Dock icon wrapper:
+ * - Tracks pointer X via `mouseX`
+ * - Measures its own center X
+ * - Scales smoothly based on distance to pointer (macOS dock-like)
+ */
+function DockIcon({
+  mouseX,
+  delay,
+  children,
+}: {
+  mouseX: MotionValue<number>;
+  delay: number;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [centerX, setCenterX] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setCenterX(r.left + r.width / 2);
+    };
+
+    update();
+
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, []);
+
+  const scaleRaw = useTransform(mouseX, (x) => {
+    // mouseX is set to -9999 when leaving the row => reset to neutral
+    if (x < -9000) return 1;
+
+    const dist = Math.abs(x - centerX);
+    const maxDist = 140; // influence radius (px)
+    const t = Math.max(0, 1 - dist / maxDist); // 1 near cursor -> 0 far
+    const eased = t * t; // smoother falloff
+    return 1 + 0.65 * eased; // peak scale ~1.65
+  });
+
+  const scale = useSpring(scaleRaw, {
+    stiffness: 420,
+    damping: 28,
+    mass: 0.25,
+  });
+
+  const lift = useTransform(scale, [1, 1.65], [0, -10]);
+  const zIndex = useTransform(scale, (v) => Math.round(v * 100));
+
+  return (
+    // Outer wrapper keeps your staggered intro (opacity/y)
+    <motion.div
+      initial={{ opacity: 0, y: 6, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.35, delay }}
+    >
+      {/* Inner wrapper does the dock transform */}
+      <motion.div
+        ref={ref}
+        className="origin-bottom will-change-transform p-2"
+        style={{ scale, y: lift, zIndex }}
+        whileTap={{ scale: 0.98 }}
+      >
+        {children}
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function HeroSection() {
   // Stagger timings (tweak as needed)
   const g1Base = 0; // group 1 start
@@ -69,6 +158,9 @@ export default function HeroSection() {
   // Avatar image fallback state: try the external GitHub avatar first, otherwise show SVG
   const [avatarErrored, setAvatarErrored] = useState(false);
   const avatarSrc = "https://avatars.githubusercontent.com/u/104758382?v=4";
+
+  // Dock pointer tracking
+  const dockX = useMotionValue(-9999);
 
   return (
     <section
@@ -214,7 +306,6 @@ export default function HeroSection() {
               >
                 <ButtonWithGlow
                   className="px-7 shadow-none drop-shadow-none"
-                  // Subtle, minimal glow using your props API
                   glowThickness={8}
                   glowSqueeze={0.88}
                   glowBlur={10}
@@ -240,14 +331,18 @@ export default function HeroSection() {
             Powering the next generation of digital products
           </motion.p>
 
-          {/* Icons row with stagger */}
-          <div className="flex flex-wrap justify-center items-center gap-4 md:gap-4">
+          {/* Icons row (Dock effect) */}
+          <div
+            className="flex flex-wrap md:flex-nowrap justify-center items-end gap-2 md:gap-3"
+            onPointerMove={(e) => dockX.set(e.clientX)}
+            onPointerLeave={() => dockX.set(-9999)}
+          >
             {[
               <svg
                 key="s"
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 256 256"
-                className="h-5 w-5 mr-2"
+                className="h-5 w-5"
               >
                 <rect width="256" height="256" fill="none" />
                 <line
@@ -273,7 +368,7 @@ export default function HeroSection() {
               </svg>,
               <svg
                 key="v"
-                className="h-5 w-5 mr-2"
+                className="h-5 w-5"
                 viewBox="0 0 24 24"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
@@ -284,7 +379,7 @@ export default function HeroSection() {
               <svg
                 key="r"
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 mr-2"
+                className="h-5 w-5"
                 viewBox="0 0 256 228"
               >
                 <path
@@ -295,7 +390,7 @@ export default function HeroSection() {
               <svg
                 key="su"
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 mr-2"
+                className="h-5 w-5"
                 viewBox="0 0 256 263"
               >
                 <defs>
@@ -337,7 +432,7 @@ export default function HeroSection() {
               <svg
                 key="tw"
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 mr-2"
+                className="h-5 w-5"
                 viewBox="0 0 256 154"
               >
                 <defs>
@@ -360,7 +455,7 @@ export default function HeroSection() {
               <svg
                 key="nx"
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 mr-2"
+                className="h-5 w-5"
                 viewBox="0 0 256 256"
               >
                 <defs>
@@ -402,17 +497,9 @@ export default function HeroSection() {
                 </g>
               </svg>,
             ].map((icon, i) => (
-              <motion.div
-                key={i}
-                className="flex items-center"
-                initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.35, delay: iconsBase + i * iconStep }}
-                whileHover={{ y: -1.5, scale: 1.05 }}
-                whileTap={{ scale: 0.98 }}
-              >
+              <DockIcon key={i} mouseX={dockX} delay={iconsBase + i * iconStep}>
                 {icon}
-              </motion.div>
+              </DockIcon>
             ))}
           </div>
         </div>
